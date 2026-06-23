@@ -1,0 +1,54 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-neutral-ultralight: #E6E6E6;
+  --color-secondary-blue-base: #1800E7;
+  --color-secondary-blue-dark: #180092;
+  --color-primary-orange-base: #FF5E00;
+  --color-content-default: #212427;
+  --color-content-secondary: #6E6E6E;
+  --color-content-revert: #FFFFFF;
+  --color-content-revert-secondary: rgba(255, 255, 255, 0.7);
+  --color-surface-overlay-dark: #0D0D1A;
+  --color-secondary-blue-extradark: #0A0050;
+  --color-secondary-blue-light: #4D33FF;
+  --color-primary-orange-ultralight: #FFD6BD;
+  --font-roboto: "Roboto", sans-serif;
+}
+
+body {
+  font-family: var(--font-roboto);
+  margin: 0;
+}
+
+@layer utilities {
+  @keyframes chevron-bounce {
+    0%, 100% { transform: translateY(0); }
+    20% { transform: translateY(4px); }
+    35% { transform: translateY(0); }
+    50% { transform: translateY(4px); }
+    65% { transform: translateY(0); }
+  }
+
+  .animate-chevron {
+    animation: chevron-bounce 3s cubic-bezier(0.28, 0.84, 0.42, 1) infinite;
+  }
+
+  @keyframes carousel-scroll {
+    from { transform: translateX(0); }
+    to { transform: translateX(-2064px); }
+  }
+
+  .animate-carousel {
+    animation: carousel-scroll 40s linear infinite;
+    animation-delay: -6s;
+    animation-play-state: var(--carousel-state, running);
+    transition: animation-play-state 0.3s;
+  }
+
+  .float-card-hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+}
