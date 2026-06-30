@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const slides = [
   { label: "TikTok Sellers", image: "/tiktok.png", floatingCard: "Digital Marketing Solution", cardTop: 30, cardSide: "right" as const },
@@ -27,12 +27,13 @@ type MarqueeGroup = {
   imageCard: { label: string; image: string };
   promo: PromoItem;
   promoAlign: "top" | "bottom" | "center";
+  stackReversed?: boolean;
 };
 
 const marqueeGroups: MarqueeGroup[] = [
   {
     stat: { title: "Best Fixed\nBusiness Service\nProvider", subtitle: "PC.com Readers'\nChoice Awards" },
-    imageCard: { label: "For small and\nmedium Businesses", image: "/small-biz.png" },
+    imageCard: { label: "For Mid-Size\nBusinesses", image: "/small-biz.png" },
     promo: {
       tag: "Business Protection",
       title: "24/7 protection with Unifi Business Shield",
@@ -40,10 +41,11 @@ const marqueeGroups: MarqueeGroup[] = [
       image: "/biz-shield.png",
     },
     promoAlign: "top",
+    stackReversed: true,
   },
   {
-    stat: { title: "400,000\nMSMEs", subtitle: "Served by Unifi Business", largeTitle: true },
-    imageCard: { label: "For the\nSelf-Employed", image: "/self-employed.png" },
+    stat: { title: "400,000\nMSMEs", subtitle: "Malaysian\nMSMEs served", largeTitle: true },
+    imageCard: { label: "For Small\nBusinesses", image: "/self-employed.png" },
     promo: {
       tag: "FIFA",
       title: "Get Full Access to the FIFA World Cup 2026!",
@@ -69,20 +71,64 @@ const marqueeGroups: MarqueeGroup[] = [
 
 const DISPLAY_MS = 7000;
 const TRANSITION_MS = 600;
+// Mobile: dwell on a column for this long, then flick to the next.
+const MOBILE_PAGE_MS = 7000;
+// Number of repeated marquee sets (must be odd so one sits dead-center).
+const COPIES = 5;
 
-function ToggleButton({
-  version,
-  onToggle,
+type Theme = 1 | 2;
+
+// Theme 1 = dark navy (secondary/blue/extradark). Theme 2 = light (Figma node 2108-15763).
+const themeStyles: Record<
+  Theme,
+  {
+    main: string;
+    section: string;
+    heading: string;
+    body: string;
+    labelBg: string;
+    labelText: string;
+  }
+> = {
+  1: {
+    main: "#0D0D1A",
+    section: "#06013A",
+    heading: "text-white",
+    body: "text-content-revert-secondary",
+    labelBg: "bg-white",
+    labelText: "text-content-default",
+  },
+  2: {
+    main: "#F1F1F1",
+    section: "#F1F1F1",
+    heading: "text-black",
+    body: "text-content-secondary",
+    labelBg: "bg-white",
+    labelText: "text-content-default",
+  },
+};
+
+function controlButtonClass(theme: Theme) {
+  return theme === 1
+    ? "bg-white/80 border-white/30 text-content-default hover:bg-white"
+    : "bg-black/80 border-black/30 text-white hover:bg-black";
+}
+
+function ControlButton({
+  label,
+  onClick,
+  theme,
 }: {
-  version: 3 | 4;
-  onToggle: () => void;
+  label: string;
+  onClick: () => void;
+  theme: Theme;
 }) {
   return (
     <button
-      onClick={onToggle}
-      className="fixed top-4 right-4 z-50 px-4 py-2 rounded-full text-sm font-bold cursor-pointer transition-colors bg-white/10 backdrop-blur-md border border-white/20 text-white hover:bg-white/20"
+      onClick={onClick}
+      className={`px-4 py-2 rounded-full text-sm font-bold cursor-pointer transition-colors border ${controlButtonClass(theme)}`}
     >
-      V{version === 3 ? 1 : 2}
+      {label}
     </button>
   );
 }
@@ -111,11 +157,12 @@ function ImageCard({
         src={image}
         alt={label}
         fill
+        sizes="320px"
         className="object-cover"
         quality={90}
       />
       <div className="absolute inset-0 bg-gradient-to-b from-black/0 to-black/50 transition-opacity duration-300 group-hover/card:opacity-0" />
-      <div className="absolute bottom-6 left-6 w-44 text-white text-3xl font-bold leading-10 whitespace-pre-line transition-opacity duration-300 group-hover/card:opacity-0">
+      <div className="absolute bottom-6 left-6 w-44 text-white text-xl font-bold leading-7 whitespace-pre-line transition-opacity duration-300 group-hover/card:opacity-0">
         {label}
       </div>
       <div className="absolute inset-0 bg-gradient-to-b from-black/40 to-black/70 flex flex-col justify-center items-center gap-2.5 opacity-0 transition-opacity duration-300 group-hover/card:opacity-100">
@@ -136,17 +183,21 @@ function StatCard({
   title,
   subtitle,
   largeTitle,
+  theme,
 }: {
   title: string;
   subtitle: string;
   largeTitle?: boolean;
+  theme: Theme;
 }) {
   return (
     <div
       className="w-80 h-80 p-6 rounded-[12px] overflow-hidden flex flex-col justify-between"
       style={{
         background:
-          "linear-gradient(287deg, var(--color-secondary-blue-light) 0%, var(--color-secondary-blue-base) 45%)",
+          theme === 2
+            ? "linear-gradient(53deg, #FF5E00 15%, #FEE6D6 155%)"
+            : "linear-gradient(287deg, var(--color-secondary-blue-light) 0%, var(--color-secondary-blue-base) 45%)",
       }}
     >
       <div
@@ -164,44 +215,58 @@ function StatCard({
 
 function PromoCard({
   promo,
+  theme,
   onHoverStart,
   onHoverEnd,
 }: {
   promo: PromoItem;
+  theme: Theme;
   onHoverStart?: () => void;
   onHoverEnd?: () => void;
 }) {
+  const imageBg = theme === 2 ? "#CECECE" : promo.imageBg;
   return (
     <div
-      className="w-80 bg-neutral-ultralight rounded-[12px] overflow-hidden flex flex-col shrink-0 group/promo cursor-pointer"
+      className="w-80 bg-neutral-ultralight rounded-[12px] overflow-hidden flex flex-col shrink-0 snap-start group/promo cursor-pointer"
       onMouseEnter={onHoverStart}
       onMouseLeave={onHoverEnd}
     >
-      <div className="w-full h-48 relative overflow-hidden" style={promo.imageBg ? { backgroundColor: promo.imageBg } : undefined}>
+      <div className="w-full h-48 relative overflow-hidden" style={imageBg ? { backgroundColor: imageBg } : undefined}>
         <Image
           src={promo.image}
           alt={promo.title}
           fill
+          sizes="320px"
           className={promo.imageFit === "contain" ? "object-contain" : "object-cover"}
         />
       </div>
-      <div className="px-6 pt-4 pb-6 bg-white flex flex-col gap-5">
-        <div className="relative">
-          <div className="px-4 py-2 rounded-lg outline outline-1 outline-offset-[-1px] outline-content-secondary/20 self-start inline-flex transition-all duration-300 group-hover/promo:opacity-0 group-hover/promo:-translate-y-4">
-            <span className="text-content-default text-sm font-medium leading-5">{promo.tag}</span>
-          </div>
-          <div className="absolute inset-0 flex items-center opacity-0 translate-y-4 transition-all duration-300 group-hover/promo:opacity-100 group-hover/promo:translate-y-0">
-            <button className="min-w-24 px-4 py-2 rounded-full outline outline-[1.5px] outline-offset-[-1.5px] outline-secondary-blue-base inline-flex justify-center items-center gap-2 cursor-pointer">
-              <span className="text-secondary-blue-base text-sm font-bold leading-5">Learn more</span>
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0">
-                <path d="M3.33 8h9.34M8.67 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-secondary-blue-base" />
-              </svg>
-            </button>
+      <div className="px-6 pt-4 pb-6 bg-white flex flex-col">
+        {/* Tag: takes space by default, collapses on hover so the text rises */}
+        <div className="grid grid-rows-[1fr] transition-all duration-300 group-hover/promo:grid-rows-[0fr] group-hover/promo:opacity-0">
+          <div className="overflow-hidden">
+            <div className="pb-5">
+              <div className="px-4 py-2 rounded-lg outline outline-1 outline-offset-[-1px] outline-content-secondary/20 inline-flex">
+                <span className="text-content-default text-sm font-medium leading-5">{promo.tag}</span>
+              </div>
+            </div>
           </div>
         </div>
         <div className="flex flex-col gap-2">
           <h3 className="text-content-default text-2xl font-bold leading-8 line-clamp-3">{promo.title}</h3>
           <p className="text-content-secondary text-base font-normal leading-6 line-clamp-3">{promo.description}</p>
+        </div>
+        {/* Button: collapsed by default, expands into the freed space on hover */}
+        <div className="grid grid-rows-[0fr] opacity-0 transition-all duration-300 group-hover/promo:grid-rows-[1fr] group-hover/promo:opacity-100">
+          <div className="overflow-hidden">
+            <div className="pt-5">
+              <button className="min-w-24 px-4 py-2 rounded-full outline outline-[1.5px] outline-offset-[-1.5px] outline-secondary-blue-base inline-flex justify-center items-center gap-2 cursor-pointer">
+                <span className="text-secondary-blue-base text-sm font-bold leading-5">Learn more</span>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0">
+                  <path d="M3.33 8h9.34M8.67 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-secondary-blue-base" />
+                </svg>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -210,21 +275,63 @@ function PromoCard({
 
 function MarqueeGroupCard({
   group,
+  theme,
   onHoverStart,
   onHoverEnd,
 }: {
   group: MarqueeGroup;
+  theme: Theme;
   onHoverStart?: () => void;
   onHoverEnd?: () => void;
 }) {
   return (
     <div className={`flex gap-6 shrink-0 ${group.promoAlign === "bottom" ? "items-end" : group.promoAlign === "center" ? "items-center" : "items-start"}`}>
-      <div className="flex flex-col gap-6 shrink-0">
-        <StatCard title={group.stat.title} subtitle={group.stat.subtitle} largeTitle={group.stat.largeTitle} />
-        <ImageCard label={group.imageCard.label} image={group.imageCard.image} height="h-60" onHoverStart={onHoverStart} onHoverEnd={onHoverEnd} />
+      <div className="flex flex-col gap-6 shrink-0 snap-start">
+        {group.stackReversed ? (
+          <>
+            <ImageCard label={group.imageCard.label} image={group.imageCard.image} height="h-60" onHoverStart={onHoverStart} onHoverEnd={onHoverEnd} />
+            <StatCard title={group.stat.title} subtitle={group.stat.subtitle} largeTitle={group.stat.largeTitle} theme={theme} />
+          </>
+        ) : (
+          <>
+            <StatCard title={group.stat.title} subtitle={group.stat.subtitle} largeTitle={group.stat.largeTitle} theme={theme} />
+            <ImageCard label={group.imageCard.label} image={group.imageCard.image} height="h-60" onHoverStart={onHoverStart} onHoverEnd={onHoverEnd} />
+          </>
+        )}
       </div>
-      <PromoCard promo={group.promo} onHoverStart={onHoverStart} onHoverEnd={onHoverEnd} />
+      <PromoCard promo={group.promo} theme={theme} onHoverStart={onHoverStart} onHoverEnd={onHoverEnd} />
     </div>
+  );
+}
+
+function MarqueePauseButton({
+  paused,
+  onToggle,
+  theme,
+}: {
+  paused: boolean;
+  onToggle: () => void;
+  theme: Theme;
+}) {
+  const color = theme === 2 ? "#ACACAC" : "rgba(255, 255, 255, 0.6)";
+  const circle =
+    "M20.0006 3.33398C24.4191 3.3395 28.6551 5.09729 31.7795 8.22168C34.9039 11.3461 36.6617 15.5821 36.6672 20.0007C36.6672 23.297 35.6893 26.5193 33.858 29.2601C32.0267 32.0008 29.4244 34.138 26.3791 35.3994C23.3337 36.6609 19.9816 36.9898 16.7486 36.3467C13.5158 35.7035 10.5458 34.1169 8.21508 31.7861C5.88435 29.4554 4.29768 26.4854 3.65453 23.2526C3.01145 20.0196 3.34035 16.6675 4.6018 13.6221C5.86324 10.5768 8.00045 7.97454 10.7411 6.14323C13.4819 4.31189 16.7042 3.334 20.0006 3.33398Z";
+  const pauseBars =
+    "M14.5139 13.334C14.201 13.3341 13.9002 13.4578 13.6789 13.679C13.4577 13.9003 13.334 14.2011 13.3339 14.514V26.3206C13.334 26.6335 13.4577 26.9343 13.6789 27.1556C13.9002 27.3769 14.201 27.5005 14.5139 27.5007H17.4664C17.7789 27.5005 18.0785 27.3764 18.2997 27.1556C18.521 26.9343 18.6463 26.6335 18.6464 26.3206V14.514C18.6463 14.2011 18.521 13.9003 18.2997 13.679C18.0785 13.4583 17.7789 13.3342 17.4664 13.334H14.5139ZM22.1881 13.334C21.8751 13.334 21.5745 13.4578 21.3531 13.679C21.1318 13.9003 21.0082 14.2011 21.008 14.514V26.3206C21.0082 26.6335 21.1318 26.9343 21.3531 27.1556C21.5745 27.3768 21.8751 27.5007 22.1881 27.5007H25.1389C25.4518 27.5007 25.7525 27.3767 25.9739 27.1556C26.1951 26.9343 26.3204 26.6335 26.3205 26.3206V14.514C26.3204 14.2011 26.1951 13.9003 25.9739 13.679C25.7525 13.4579 25.4518 13.334 25.1389 13.334H22.1881Z";
+  const playTriangle = "M16.5 13L27 20L16.5 27V13Z";
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-label={paused ? "Play marquee" : "Pause marquee"}
+      className="flex justify-center items-center cursor-pointer"
+    >
+      <div className="size-10 relative overflow-hidden">
+        <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path fillRule="evenodd" clipRule="evenodd" d={`${circle} ${paused ? playTriangle : pauseBars}`} fill={color} />
+        </svg>
+      </div>
+    </button>
   );
 }
 
@@ -232,64 +339,342 @@ function HeroV3({
   activeIndex,
   nextIndex,
   isTransitioning,
+  theme,
 }: {
   activeIndex: number;
   nextIndex: number;
   isTransitioning: boolean;
+  theme: Theme;
 }) {
   const [isCardHovered, setIsCardHovered] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [mobileActive, setMobileActive] = useState(0);
+  const t = themeStyles[theme];
+
+  // Each group is two equal-width columns (stacked cards + promo). Mobile pages
+  // one column at a time; desktop pagination tracks the 3 groups continuously.
+  const totalCols = marqueeGroups.length * 2;
+  const indTrack = theme === 2 ? "rgba(33,36,39,0.1)" : "rgba(255,255,255,0.2)";
+  const indFill = theme === 2 ? "#212427" : "#FFFFFF";
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const trackRef = useRef<HTMLDivElement>(null);
+  const baseRef = useRef(0);
+  const loopRef = useRef(0);
+  const drag = useRef({ active: false, lastX: 0 });
+  const recenterTimer = useRef(0);
+
+  const numGroups = marqueeGroups.length;
+  const pillRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const fillRefs = useRef<(HTMLDivElement | null)[]>([]);
+
+  const autoScroll = !isCardHovered && !isPaused;
+
+  // Map any scroll position back into the center copy's window — seamless
+  // because every copy is identical.
+  const normalize = (x: number) => {
+    const loop = loopRef.current;
+    const base = baseRef.current;
+    if (!loop) return x;
+    return base + ((((x - base) % loop) + loop) % loop);
+  };
+
+  // Measure one loop (width of a single set of groups) and start in the
+  // center copy, leaving a full loop of runway on each side so manual
+  // scrolling flows infinitely both ways without ever revealing empty space.
+  useEffect(() => {
+    const track = trackRef.current;
+    const el = scrollRef.current;
+    if (!track || !el || track.children.length < COPIES) return;
+    const c0 = track.children[0] as HTMLElement;
+    const c1 = track.children[1] as HTMLElement;
+    loopRef.current = c1.offsetLeft - c0.offsetLeft;
+    baseRef.current = (track.children[(COPIES - 1) / 2] as HTMLElement).offsetLeft;
+    el.scrollLeft = baseRef.current;
+  }, []);
+
+  // While dragging there's no momentum, so recenter instantly (seamless).
+  // For native flicks, leave the scroll untouched so inertia carries across
+  // the copies, and recenter only once it settles — otherwise touching
+  // scrollLeft mid-flick cancels the momentum and it stops dead.
+  const handleScroll = () => {
+    const el = scrollRef.current;
+    if (!el || !loopRef.current) return;
+    // Mobile: snap the active page to the column nearest the left edge while the
+    // user flicks (paused), then recenter once it settles. Auto paging drives
+    // mobileActive itself, so don't fight it here.
+    if (isMobile) {
+      if (!isPaused) return;
+      const pitch = loopRef.current / totalCols;
+      const rel = ((((el.scrollLeft - baseRef.current) % loopRef.current) + loopRef.current) % loopRef.current);
+      setMobileActive(Math.round(rel / pitch) % totalCols);
+      window.clearTimeout(recenterTimer.current);
+      recenterTimer.current = window.setTimeout(() => {
+        const e = scrollRef.current;
+        if (e) e.scrollLeft = normalize(e.scrollLeft);
+      }, 140);
+      return;
+    }
+    if (drag.current.active) {
+      el.scrollLeft = normalize(el.scrollLeft);
+      return;
+    }
+    if (!isPaused) return; // auto-scroll wraps itself in the rAF loop
+    window.clearTimeout(recenterTimer.current);
+    recenterTimer.current = window.setTimeout(() => {
+      const e = scrollRef.current;
+      if (e) e.scrollLeft = normalize(e.scrollLeft);
+    }, 120);
+  };
+
+  // Desktop only: continuous auto-scroll. Manual scrolling takes over when paused.
+  useEffect(() => {
+    if (isMobile || !autoScroll) return;
+    const el = scrollRef.current;
+    if (!el) return;
+    const SPEED = 52; // px/s — matches the previous 2064px / 40s marquee
+    let raf = 0;
+    let last = 0;
+    const step = (now: number) => {
+      if (last) {
+        el.scrollLeft += (SPEED * (now - last)) / 1000;
+        if (el.scrollLeft >= baseRef.current + loopRef.current) {
+          el.scrollLeft -= loopRef.current;
+        }
+      }
+      last = now;
+      raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [autoScroll, isMobile]);
+
+  // Entering mobile: start from a clean column boundary.
+  useEffect(() => {
+    if (!isMobile) return;
+    const el = scrollRef.current;
+    if (el && loopRef.current) el.scrollLeft = baseRef.current;
+    setMobileActive(0);
+  }, [isMobile]);
+
+  // Mobile only: dwell on a column for 7s, then flick to the next one. Pausing
+  // stops the timer and hands scrolling to the user (native swipe).
+  useEffect(() => {
+    if (!isMobile || isPaused) return;
+    const el = scrollRef.current;
+    if (!el) return;
+    const id = window.setInterval(() => {
+      const loop = loopRef.current;
+      if (!el || !loop) return;
+      el.scrollTo({ left: el.scrollLeft + loop / totalCols, behavior: "smooth" });
+      setMobileActive((a) => (a + 1) % totalCols);
+      window.setTimeout(() => {
+        if (el.scrollLeft >= baseRef.current + loop - 2) el.scrollLeft -= loop;
+      }, 650);
+    }, MOBILE_PAGE_MS);
+    return () => window.clearInterval(id);
+  }, [isMobile, isPaused, totalCols]);
+
+  // Desktop only: drive the pagination indicator from the live scroll position
+  // so it stays in sync during both auto-scroll and manual dragging. Imperative
+  // DOM writes keep the marquee from re-rendering 60x/s.
+  useEffect(() => {
+    if (isMobile) return;
+    let raf = 0;
+    const tick = () => {
+      const el = scrollRef.current;
+      const loop = loopRef.current;
+      if (el && loop) {
+        const pitch = loop / numGroups;
+        const rel = ((((el.scrollLeft - baseRef.current) % loop) + loop) % loop);
+        const p = rel / pitch;
+        const active = Math.floor(p) % numGroups;
+        const progress = p - Math.floor(p);
+        for (let i = 0; i < numGroups; i++) {
+          const pill = pillRefs.current[i];
+          const fill = fillRefs.current[i];
+          if (pill) pill.style.width = i === active ? "64px" : "6px";
+          if (fill) fill.style.width = i === active ? `${progress * 100}%` : "0%";
+        }
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [numGroups, isMobile]);
+
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    const el = scrollRef.current;
+    // On mobile, paused scrolling is native touch; the pointer-drag is desktop only.
+    if (!isPaused || !el || isMobile) return;
+    drag.current = { active: true, lastX: e.clientX };
+    el.setPointerCapture(e.pointerId);
+  };
+  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const el = scrollRef.current;
+    if (!drag.current.active || !el) return;
+    el.scrollLeft -= e.clientX - drag.current.lastX;
+    drag.current.lastX = e.clientX;
+  };
+  const onPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    const el = scrollRef.current;
+    drag.current.active = false;
+    if (el?.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId);
+  };
 
   return (
-    <section className="w-full min-h-[calc(100vh-40px)] bg-[#06013A] rounded-b-[21px] overflow-hidden">
-      <div className="w-full h-full max-w-[1280px] mx-auto px-[140px] pt-10 pb-20 flex flex-col gap-10">
+    <section
+      className="w-full md:min-h-[calc(100vh-40px)] rounded-b-[21px] overflow-hidden"
+      style={{ backgroundColor: t.section }}
+    >
+      <div className="w-full h-full max-w-[1280px] mx-auto px-4 pt-6 pb-10 md:px-[140px] md:pt-10 md:pb-20 flex flex-col gap-6 md:gap-10">
         <div className="flex-1 relative flex flex-col">
-          <div className="py-10 flex justify-between items-start gap-36">
+          <div className="py-0 md:py-10 flex justify-end items-end gap-2.5">
             <div className="flex-1 flex flex-col gap-4">
               <div className="flex flex-col">
-                <div className="flex items-center gap-4">
-                  <span className="text-white text-5xl font-bold leading-[56px]">
+                <div className="flex items-center gap-2 md:gap-4">
+                  <span className={`${t.heading} text-[26px] leading-[34px] md:text-5xl md:leading-[56px] font-bold`}>
                     Helping
                   </span>
                   <AnimatedLabel
                     activeIndex={activeIndex}
                     nextIndex={nextIndex}
                     isTransitioning={isTransitioning}
-                    bgClass="bg-white/10"
-                    textClass="text-white"
+                    bgClass={t.labelBg}
+                    textClass={t.labelText}
                   />
                 </div>
-                <h1 className="text-white text-5xl font-bold leading-[56px]">
+                <h1 className={`${t.heading} text-[26px] leading-[34px] md:text-5xl md:leading-[56px] font-bold`}>
                   stay connected to every opportunity.
                 </h1>
               </div>
-              <p className="text-content-revert-secondary text-base font-normal leading-6">
+              <p className={`${t.body} text-base font-normal leading-6`}>
                 More than internet, Unifi Business offers everything you need to
                 start, run, and grow your company no matter the size.
               </p>
             </div>
+            {/* Desktop: pause anchored bottom-right, aligned with the description */}
+            <div className="hidden md:block">
+              <MarqueePauseButton
+                paused={isPaused}
+                onToggle={() => setIsPaused((p) => !p)}
+                theme={theme}
+              />
+            </div>
           </div>
 
-          <div className="mt-auto -mx-[402px] pl-[402px] overflow-hidden">
-            <div
-              className="flex gap-6 animate-carousel"
-              style={{ "--carousel-state": isCardHovered ? "paused" : "running" } as React.CSSProperties}
-            >
-              {marqueeGroups.map((group, i) => (
-                <MarqueeGroupCard
+          <div
+            ref={scrollRef}
+            onScroll={handleScroll}
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+            onPointerCancel={onPointerUp}
+            className={`relative mt-6 md:mt-auto md:-mx-[402px] overflow-y-hidden no-scrollbar ${
+              isPaused ? "overflow-x-auto cursor-grab active:cursor-grabbing" : "overflow-x-hidden"
+            } ${isMobile && isPaused ? "snap-x snap-mandatory" : ""}`}
+          >
+            <div ref={trackRef} className="flex gap-6 w-max">
+              {Array.from({ length: COPIES }, (_, copy) => (
+                <div key={copy} className="flex gap-6 shrink-0">
+                  {marqueeGroups.map((group, i) => (
+                    <MarqueeGroupCard
+                      key={`${copy}-${i}`}
+                      group={group}
+                      theme={theme}
+                      onHoverStart={() => setIsCardHovered(true)}
+                      onHoverEnd={() => setIsCardHovered(false)}
+                    />
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Carousel indicator: pagination centered, pause anchored right */}
+          <div className="relative mt-4 md:mt-6 flex h-8 items-center justify-center">
+            {/* Desktop: one item per group, fill tracks the live scroll position */}
+            <div className="hidden md:flex gap-2 items-center">
+              {marqueeGroups.map((_, i) => (
+                <div
                   key={i}
-                  group={group}
-                  onHoverStart={() => setIsCardHovered(true)}
-                  onHoverEnd={() => setIsCardHovered(false)}
-                />
+                  ref={(el) => {
+                    pillRefs.current[i] = el;
+                  }}
+                  className="h-1.5 rounded-full overflow-hidden transition-[width] duration-500 ease-out"
+                  style={{ width: i === 0 ? "64px" : "6px", backgroundColor: indTrack }}
+                >
+                  <div
+                    ref={(el) => {
+                      fillRefs.current[i] = el;
+                    }}
+                    className="h-full rounded-full"
+                    style={{ width: "0%", backgroundColor: indFill }}
+                  />
+                </div>
               ))}
-              {marqueeGroups.map((group, i) => (
-                <MarqueeGroupCard
-                  key={`dup-${i}`}
-                  group={group}
-                  onHoverStart={() => setIsCardHovered(true)}
-                  onHoverEnd={() => setIsCardHovered(false)}
-                />
-              ))}
+            </div>
+            {/* Mobile: one item per column; the active fill runs a 7s timer */}
+            <div className="flex md:hidden gap-2 items-center">
+              {Array.from({ length: totalCols }, (_, i) => {
+                const active = i === mobileActive;
+                return (
+                  <div
+                    key={i}
+                    className="h-1.5 rounded-full overflow-hidden transition-[width] duration-500 ease-out"
+                    style={{ width: active ? "64px" : "6px", backgroundColor: indTrack }}
+                  >
+                    {active && !isPaused && (
+                      <div
+                        key={mobileActive}
+                        className="h-full rounded-full"
+                        style={{
+                          width: "0%",
+                          backgroundColor: indFill,
+                          animation: `pag-fill ${MOBILE_PAGE_MS}ms linear forwards`,
+                        }}
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="absolute right-0 top-1/2 -translate-y-1/2 md:hidden">
+              <MarqueePauseButton
+                paused={isPaused}
+                onToggle={() => setIsPaused((p) => !p)}
+                theme={theme}
+              />
+            </div>
+          </div>
+
+          <div className="mt-8 md:mt-12 flex flex-col items-center justify-center">
+            <p className={`${t.body} text-base md:text-lg font-medium leading-6 md:leading-[26px] text-center`}>
+              Learn what Unifi Business can do for you.
+            </p>
+            <div className="mt-5 md:mt-6 flex flex-col md:flex-row gap-3 w-full md:w-auto">
+              <button className="w-full md:w-auto md:min-w-24 px-5 py-3 md:px-8 md:py-4 bg-primary-orange-base rounded-full flex items-center justify-center gap-3 cursor-pointer hover:bg-[#e65500] transition-colors">
+                <span className="text-white text-base font-bold leading-6 whitespace-nowrap">
+                  Get started
+                </span>
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0">
+                  <path d="M10 4.17v11.66M4.17 10 10 15.83 15.83 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-white" />
+                </svg>
+              </button>
+              <button className={`w-full md:w-auto md:min-w-24 px-5 py-3 md:px-8 md:py-4 rounded-full flex items-center justify-center cursor-pointer transition-colors ${theme === 1 ? "hover:bg-white/10" : "hover:bg-black/10"}`}>
+                <span className={`${t.heading} text-base font-bold leading-6 whitespace-nowrap`}>
+                  Talk to our experts
+                </span>
+              </button>
             </div>
           </div>
         </div>
@@ -332,83 +717,107 @@ function HeroV4({
   activeIndex,
   nextIndex,
   isTransitioning,
+  theme,
+  recommenderOn,
 }: {
   activeIndex: number;
   nextIndex: number;
   isTransitioning: boolean;
+  theme: Theme;
+  recommenderOn: boolean;
 }) {
+  const t = themeStyles[theme];
+
   return (
     <section className="relative w-full min-h-[calc(100vh-104px)] overflow-hidden rounded-b-3xl">
-      <div className="absolute inset-0 bg-[#06013A]">
-        <div className="absolute left-0 bottom-0 w-full h-64 bg-gradient-to-t from-black/60 from-25% to-transparent" />
+      <div className="absolute inset-0" style={{ backgroundColor: t.section }}>
+        {theme === 1 && (
+          <div className="absolute left-0 bottom-0 w-full h-64 bg-gradient-to-t from-black/60 from-25% to-transparent" />
+        )}
       </div>
 
-      <div className="relative z-10 w-full h-full max-w-[1280px] mx-auto px-10 pt-10 pb-20 flex gap-16">
-        <div className="flex-1 py-6 flex flex-col gap-10">
+      <div className="relative z-10 w-full h-full max-w-[1280px] mx-auto px-10 pt-10 pb-20 flex gap-24">
+        <div className={`flex-1 py-6 flex flex-col gap-10 ${recommenderOn ? "" : "justify-center"}`}>
           <div className="w-full max-w-[996px] min-w-72 flex flex-col gap-8">
             <div className="flex flex-col">
               <div className="flex items-center gap-4">
-                <span className="text-white text-5xl font-bold leading-[56px]">
+                <span className={`${t.heading} text-5xl font-bold leading-[56px]`}>
                   Helping
                 </span>
                 <AnimatedLabel
                   activeIndex={activeIndex}
                   nextIndex={nextIndex}
                   isTransitioning={isTransitioning}
-                  bgClass="bg-white/10"
-                  textClass="text-white"
+                  bgClass={t.labelBg}
+                  textClass={t.labelText}
                 />
               </div>
-              <h1 className="text-white text-5xl font-bold leading-[56px]">
+              <h1 className={`${t.heading} text-5xl font-bold leading-[56px]`}>
                 stay connected to every opportunity.
               </h1>
             </div>
 
-            <div className="flex flex-col gap-2">
-              <p className="text-white text-sm font-normal leading-5">
-                Let us help you find what you need by answering 3 questions.
-              </p>
-              <div className="flex items-center gap-3">
-                <div className="p-1 rounded-full outline outline-[2.5px] outline-offset-[-2.5px] outline-white/90 flex items-center justify-center">
-                  <span className="size-6 text-center text-white text-lg font-semibold leading-6">1</span>
-                </div>
-                <span className="text-white text-xl font-normal leading-7">
-                  What is the size of your business?
-                </span>
-              </div>
-            </div>
+            <p className={`${t.body} text-base font-normal leading-6`}>
+              More than internet, Unifi Business offers everything you need to
+              start, run, and grow your company no matter the size. Learn what
+              Unifi Business can do for you.
+            </p>
 
-            <div className="flex gap-6">
-              {businessSizes.map((size) => (
-                <button
-                  key={size.label}
-                  className="w-36 px-1 py-3 bg-neutral-50/30 rounded-lg flex flex-col items-center gap-2 cursor-pointer hover:bg-neutral-50/40 transition-colors"
-                >
-                  <div className="size-16 rounded-[2.87px] flex items-center justify-center">
-                    {size.icon}
-                  </div>
-                  <div className="w-full flex flex-col gap-1">
-                    <span className="text-center text-white text-base font-bold leading-6">
-                      {size.label}
-                    </span>
-                    <span className="text-center text-content-revert-secondary text-sm font-normal leading-5">
-                      {size.description}
+            {recommenderOn && (
+              <>
+                <div className="flex flex-col gap-2">
+                  <p className={`${t.heading} text-sm font-normal leading-5`}>
+                    Let us help you find what you need by answering 3 questions.
+                  </p>
+                  <div className="flex items-center gap-3">
+                    <div className={`p-1 rounded-full outline outline-[2.5px] outline-offset-[-2.5px] flex items-center justify-center ${theme === 1 ? "outline-white/90" : "outline-black/90"}`}>
+                      <span className={`size-6 text-center ${t.heading} text-lg font-semibold leading-6`}>1</span>
+                    </div>
+                    <span className={`${t.heading} text-xl font-normal leading-7`}>
+                      What is the size of your business?
                     </span>
                   </div>
-                </button>
-              ))}
-            </div>
+                </div>
+
+                <div className="flex gap-6">
+                  {businessSizes.map((size) => (
+                    <button
+                      key={size.label}
+                      className={`w-36 px-1 py-3 rounded-lg flex flex-col items-center gap-2 cursor-pointer transition-colors ${theme === 1 ? "bg-neutral-50/30 hover:bg-neutral-50/40" : "bg-black/5 hover:bg-black/10"}`}
+                    >
+                      <div
+                        className="size-16 rounded-[2.87px] flex items-center justify-center"
+                        style={theme === 2 ? { filter: "invert(1)" } : undefined}
+                      >
+                        {size.icon}
+                      </div>
+                      <div className="w-full flex flex-col gap-1">
+                        <span className={`text-center ${t.heading} text-base font-bold leading-6`}>
+                          {size.label}
+                        </span>
+                        <span className={`text-center ${t.body} text-sm font-normal leading-5`}>
+                          {size.description}
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
 
           <div className="flex gap-3">
-            <button className="min-w-24 px-5 py-3 bg-primary-orange-base rounded-full flex items-center justify-center cursor-pointer hover:bg-[#e65500] transition-colors">
-              <span className="text-white text-base font-bold leading-6">
+            <button className="min-w-24 px-8 py-4 bg-primary-orange-base rounded-full flex items-center justify-center gap-3 cursor-pointer hover:bg-[#e65500] transition-colors">
+              <span className="text-white text-base font-bold leading-6 whitespace-nowrap">
                 Get started
               </span>
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0">
+                <path d="M10 4.17v11.66M4.17 10 10 15.83 15.83 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-white" />
+              </svg>
             </button>
-            <button className="min-w-24 px-5 py-3 rounded-full flex items-center justify-center cursor-pointer hover:bg-white/10 transition-colors">
-              <span className="text-neutral-ultralight text-base font-bold leading-6">
-                Explore more
+            <button className={`min-w-24 px-8 py-4 rounded-full flex items-center justify-center cursor-pointer transition-colors ${theme === 1 ? "hover:bg-white/10" : "hover:bg-black/10"}`}>
+              <span className={`${t.heading} text-base font-bold leading-6 whitespace-nowrap`}>
+                Talk to our experts
               </span>
             </button>
           </div>
@@ -422,6 +831,7 @@ function HeroV4({
                 src={slide.image}
                 alt={slide.label}
                 fill
+                sizes="611px"
                 className="object-cover"
                 quality={100}
                 priority={i === 0}
@@ -491,12 +901,300 @@ function HeroV4({
   );
 }
 
-function Navbar() {
+// ---- Desktop mega-menu (Figma node 40-1592) ----
+
+const NAV_ITEMS = [
+  "Connectivity",
+  "Solutions",
+  "Devices",
+  "Promotion",
+  "IMPAK BIZ",
+  "Unifi Exclusive",
+  "Support",
+] as const;
+
+function CardArrow() {
   return (
-    <div className="w-full relative z-40 flex flex-col">
+    <span className="shrink-0 size-8 -translate-x-3 opacity-0 transition-all duration-300 group-hover/navcard:translate-x-0 group-hover/navcard:opacity-100">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+        <path d="M7 17 17 7M9 7h8v8" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </span>
+  );
+}
+
+function NavImageCard({
+  image,
+  title,
+  subtitle,
+  className = "",
+  sizes = "424px",
+  titleClassName = "truncate",
+  subtitleClassName = "truncate",
+}: {
+  image: string;
+  title: string;
+  subtitle?: string;
+  className?: string;
+  sizes?: string;
+  titleClassName?: string;
+  subtitleClassName?: string;
+}) {
+  return (
+    <a
+      href="#"
+      className={`group/navcard relative block rounded-3xl overflow-hidden bg-secondary-blue-extradark ${className}`}
+    >
+      <Image src={image} alt={title} fill sizes={sizes} className="object-cover" />
+      <div className="absolute inset-0 bg-gradient-to-b from-black/5 to-black/90" />
+      <div className="absolute inset-0 p-5 flex items-end">
+        <div className="flex-1 flex items-center gap-5 min-w-0">
+          <div className="flex-1 flex flex-col gap-1 min-w-0">
+            <p className={`text-white text-lg font-bold leading-[26px] ${titleClassName}`}>{title}</p>
+            {subtitle && <p className={`text-white/80 text-base font-normal leading-6 ${subtitleClassName}`}>{subtitle}</p>}
+          </div>
+          <CardArrow />
+        </div>
+      </div>
+    </a>
+  );
+}
+
+function MenuHeading({ children }: { children: string }) {
+  return (
+    <p className="text-[#2f2e2e] text-xs font-normal uppercase leading-[18px]">{children}</p>
+  );
+}
+
+// --- Solutions: three columns of text links ---
+
+type MenuLinkItem = { title: string; subtitle?: string };
+type MenuCategory = { heading: string; items: MenuLinkItem[] };
+
+const solutionsColumns: MenuCategory[][] = [
+  [
+    { heading: "Productivity", items: [{ title: "Go Bookit", subtitle: "Customer booking system" }, { title: "Cloud Storage" }] },
+    { heading: "Entertainment", items: [{ title: "Unifi Business TV" }, { title: "Unifi Hospitality TV" }] },
+  ],
+  [
+    { heading: "Cybersecurity", items: [{ title: "NetShield", subtitle: "Network-level security solution" }, { title: "Kaspersky Small Office Security" }] },
+    { heading: "Healthcare", items: [{ title: "e-Pharmacy" }] },
+  ],
+  [
+    { heading: "Sales & Marketing", items: [{ title: "eCommerce Hub", subtitle: "Set up your business online" }, { title: "CariCari" }, { title: "Digital Marketing Solution", subtitle: "Promote your business" }] },
+  ],
+];
+
+const connectivityColumns: MenuCategory[][] = [
+  [
+    { heading: "Internet", items: [{ title: "Unifi Business Broadband" }, { title: "Unifi Air Biz" }, { title: "SMART Internet", subtitle: "Secure and manage internet access" }, { title: "Fibre-To-The-Room" }] },
+  ],
+  [
+    { heading: "Mobile", items: [{ title: "UNI5G Business Mobile" }] },
+  ],
+  [
+    { heading: "Voice", items: [{ title: "Business Voice / Phone Line" }, { title: "IP Centrex", subtitle: "Cloud-based business phone" }, { title: "Multi-line SIP", subtitle: "For high volume business calls" }] },
+  ],
+];
+
+function MenuTextLink({ title, subtitle }: MenuLinkItem) {
+  return (
+    <a href="#" className="group/link flex flex-col gap-0.5">
+      <span className="text-content-default text-base font-medium leading-6 transition-colors group-hover/link:text-primary-orange-base">{title}</span>
+      {subtitle && <span className="text-content-secondary text-sm font-normal leading-5">{subtitle}</span>}
+    </a>
+  );
+}
+
+function TextColumnsMenu({ columns }: { columns: MenuCategory[][] }) {
+  return (
+    <div className="grid grid-cols-3 gap-8">
+      {columns.map((column, i) => (
+        <div key={i} className="flex flex-col gap-8">
+          {column.map((cat) => (
+            <div key={cat.heading} className="flex flex-col gap-4">
+              <MenuHeading>{cat.heading}</MenuHeading>
+              <div className="flex flex-col gap-4">
+                {cat.items.map((item) => (
+                  <MenuTextLink key={item.title} {...item} />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ConnectivityMenu() {
+  return <TextColumnsMenu columns={connectivityColumns} />;
+}
+
+function SolutionsMenu() {
+  return <TextColumnsMenu columns={solutionsColumns} />;
+}
+
+// --- Devices: card grid + limited-time cross-sell ---
+
+const deviceCards = [
+  { image: "/nav/dev-smartzone.png", title: "Smart Zone", subtitle: "xxx" },
+  { image: "/nav/dev-ipad.png", title: "iPad for Business", subtitle: "xxx" },
+  { image: "/nav/dev-gobookit.png", title: "Go Bookit", subtitle: "xxx" },
+  { image: "/nav/dev-fmc.png", title: "Fixed Mobile Convergence", subtitle: "xxx" },
+  { image: "/nav/dev-ultra.png", title: "Unifi Business Ultra", subtitle: "xxx" },
+];
+
+function DevicesMenu() {
+  return (
+    <div className="flex gap-10 items-start">
+      <div className="flex-1 grid grid-cols-3 gap-5">
+        {deviceCards.map((card) => (
+          <NavImageCard key={card.title} {...card} className="h-[188px]" sizes="280px" />
+        ))}
+      </div>
+      <div className="self-stretch w-px bg-[#d2d2dd]" />
+      <div className="w-[252px] shrink-0 flex flex-col gap-4">
+        <MenuHeading>Limited Time Only</MenuHeading>
+        <a href="#" className="block rounded-3xl overflow-hidden bg-white border border-[#d2d2dd]">
+          <div className="relative h-[189px] w-full">
+            <Image src="/nav/dev-5g.png" alt="Premium 5G Smartphones" fill sizes="252px" className="object-cover" />
+          </div>
+          <div className="p-4 flex flex-col gap-2">
+            <p className="text-content-default text-base font-bold leading-6">Premium 5G Smartphones with Easy Installments</p>
+            <p className="text-content-default text-sm font-normal leading-5">No credit card, 0% interest and Unlimited Data.</p>
+          </div>
+        </a>
+      </div>
+    </div>
+  );
+}
+
+// --- Unifi Exclusive: two wide cards ---
+
+function ExclusiveMenu() {
+  return (
+    <div className="flex gap-5">
+      <NavImageCard
+        className="w-[424px] h-[188px]"
+        image="/nav/exc-partnership.png"
+        title="Unifi Business Partnership: Success Stories"
+        subtitle="Discover how our digital solutions are designed to elevate Malaysian businesses."
+        titleClassName="line-clamp-2"
+        subtitleClassName="line-clamp-2"
+      />
+      <NavImageCard
+        className="w-[424px] h-[188px]"
+        image="/nav/exc-club.png"
+        title="Unifi Business Club"
+        subtitle="Join a like-minded community, share stories and seek advice from successful mSMEs!"
+        titleClassName="line-clamp-2"
+        subtitleClassName="line-clamp-2"
+      />
+    </div>
+  );
+}
+
+// --- Support: coverage card + help centre + explore / call ---
+
+const helpCentreColumns = [
+  ["Elite Crew", "Easy Fix", "Easy e-Invoice"],
+  ["Find TM Point", "Contact Us", "FAQs"],
+];
+
+function BillIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="shrink-0">
+      <path d="M6 3h8l5 5v12a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" stroke="#1800E7" strokeWidth="1.5" strokeLinejoin="round" />
+      <path d="M14 3v5h5" stroke="#1800E7" strokeWidth="1.5" strokeLinejoin="round" />
+      <path d="M13.4 12.1c-.36-.43-.92-.6-1.5-.6-.78 0-1.4.45-1.4 1.05 0 1.5 3 .7 3 2.25 0 .65-.6 1.1-1.45 1.1-.66 0-1.26-.27-1.6-.75M12 10.5v6" stroke="#FF5E00" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ChatIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="shrink-0">
+      <path d="M5 4h2.7l1.4 3.6-2 1.4a11 11 0 0 0 4.9 4.9l1.4-2 3.6 1.4V18a2 2 0 0 1-2 2A13 13 0 0 1 3 7a2 2 0 0 1 2-3Z" stroke="#1800E7" strokeWidth="1.5" strokeLinejoin="round" />
+      <circle cx="17.5" cy="6" r="2.5" fill="#FF5E00" />
+    </svg>
+  );
+}
+
+function CallCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="px-4 py-3 rounded-2xl bg-primary-orange-ultralight/30 border border-primary-orange-ultralight flex flex-col gap-1">
+      <span className="text-content-secondary text-xs font-normal uppercase leading-[18px]">{label}</span>
+      <span className="text-content-default text-lg font-bold leading-[26px]">{value}</span>
+    </div>
+  );
+}
+
+function SupportMenu() {
+  return (
+    <div className="flex gap-10 items-stretch">
+      <NavImageCard
+        className="w-[360px] self-stretch min-h-[200px]"
+        image="/nav/sup-coverage.png"
+        title="Coverage Availability"
+        subtitle="Check My Coverage"
+        sizes="360px"
+      />
+      <div className="flex-1 flex flex-col gap-4">
+        <MenuHeading>Help Centre</MenuHeading>
+        <div className="flex gap-16">
+          {helpCentreColumns.map((col, i) => (
+            <div key={i} className="flex flex-col gap-5">
+              {col.map((label) => (
+                <a key={label} href="#" className="text-content-default text-base font-medium leading-6 transition-colors hover:text-primary-orange-base">
+                  {label}
+                </a>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="self-stretch w-px bg-[#d2d2dd]" />
+      <div className="w-[252px] shrink-0 flex flex-col gap-6">
+        <div className="flex flex-col gap-4">
+          <MenuHeading>Explore More</MenuHeading>
+          <a href="#" className="group/exp flex items-center gap-3">
+            <BillIcon />
+            <span className="text-content-default text-base font-medium leading-6 transition-colors group-hover/exp:text-primary-orange-base">Bill Payment</span>
+          </a>
+          <a href="#" className="group/exp flex items-center gap-3">
+            <ChatIcon />
+            <span className="text-content-default text-base font-medium leading-6 transition-colors group-hover/exp:text-primary-orange-base">Live Chat</span>
+          </a>
+        </div>
+        <div className="flex flex-col gap-3">
+          <MenuHeading>Need Urgent Help? Call Us</MenuHeading>
+          <CallCard label="Local" value="Dial 100" />
+          <CallCard label="International" value="Dial +603 2106 3001" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const MENU_PANELS: Record<string, React.ReactNode> = {
+  Connectivity: <ConnectivityMenu />,
+  Solutions: <SolutionsMenu />,
+  Devices: <DevicesMenu />,
+  "Unifi Exclusive": <ExclusiveMenu />,
+  Support: <SupportMenu />,
+};
+
+function Navbar() {
+  const [active, setActive] = useState<string | null>(null);
+  return (
+    <div
+      className="w-full relative z-40 flex flex-col"
+      onMouseLeave={() => setActive(null)}
+    >
       <div className="w-full h-10 bg-[#2B2B2B]">
-       <div className="max-w-[1280px] mx-auto h-full px-10 flex items-center gap-5">
-        <div className="self-stretch flex items-end">
+       <div className="max-w-[1280px] mx-auto h-full px-4 md:px-10 flex items-center gap-5">
+        <div className="self-stretch hidden md:flex items-end">
           <button className="px-4 py-2 rounded-tl-lg rounded-tr-lg flex items-center">
             <span className="text-white/70 text-xs font-medium">Personal</span>
           </button>
@@ -504,7 +1202,7 @@ function Navbar() {
             <span className="text-[#1a1a1a] text-xs font-medium">Business</span>
           </button>
         </div>
-        <div className="h-4 w-px bg-white/20" />
+        <div className="h-4 w-px bg-white/20 hidden md:block" />
         <div className="flex-1 flex items-center gap-3">
           <div className="flex flex-col gap-[2px]">
             <div className="w-1 h-1 bg-white rounded-full" />
@@ -519,7 +1217,7 @@ function Navbar() {
        </div>
       </div>
       <div className="w-full bg-white shadow-[0px_4px_20px_0px_rgba(24,0,146,0.08)]">
-       <div className="max-w-[1280px] mx-auto px-10 py-3 flex items-center gap-5">
+       <div className="max-w-[1280px] mx-auto px-4 md:px-10 py-3 flex items-center gap-5">
         <div className="flex-1 flex items-center gap-8">
           <svg width="81" height="36" viewBox="0 0 81 36" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0">
             <g clipPath="url(#clip0_1_7389)">
@@ -546,16 +1244,31 @@ function Navbar() {
               </clipPath>
             </defs>
           </svg>
-          <nav className="flex-1 flex items-center">
-            {["Connectivity", "Solutions", "Devices", "Promotion", "IMPAK BIZ", "Unifi Exclusive", "Support"].map((item) => (
-              <a key={item} href="#" className="px-4 py-2 text-[#1a1a1a] text-base font-normal leading-6 hover:text-[#1400A0] transition-colors">
-                {item}
-              </a>
-            ))}
+          <nav className="flex-1 hidden md:flex items-center">
+            {NAV_ITEMS.map((item) => {
+              const hasPanel = item in MENU_PANELS;
+              const isActive = active === item && hasPanel;
+              return (
+                <button
+                  key={item}
+                  type="button"
+                  onMouseEnter={() => setActive(hasPanel ? item : null)}
+                  className={`grid place-items-center px-4 py-2 rounded-full text-base leading-6 whitespace-nowrap border transition-colors cursor-pointer ${
+                    isActive
+                      ? "border-primary-orange-base text-primary-orange-base"
+                      : "border-transparent text-[#1a1a1a] hover:text-primary-orange-base"
+                  }`}
+                >
+                  {/* invisible medium-weight copy reserves the active width so the bar doesn't shift on hover */}
+                  <span aria-hidden className="col-start-1 row-start-1 font-medium invisible">{item}</span>
+                  <span className={`col-start-1 row-start-1 ${isActive ? "font-medium" : "font-normal"}`}>{item}</span>
+                </button>
+              );
+            })}
           </nav>
         </div>
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3 md:gap-6">
+          <div className="hidden md:flex items-center gap-2">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
               <circle cx="10" cy="10" r="8.5" stroke="#1a1a1a" strokeWidth="1.5" />
               <ellipse cx="10" cy="10" rx="3.5" ry="8.5" stroke="#1a1a1a" strokeWidth="1.5" />
@@ -571,9 +1284,24 @@ function Navbar() {
             <circle cx="10.5" cy="10.5" r="6" stroke="#1a1a1a" strokeWidth="1.5" />
             <path d="M15 15l5 5" stroke="#1a1a1a" strokeWidth="1.5" strokeLinecap="round" />
           </svg>
+          {/* Hamburger — mobile only */}
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="md:hidden">
+            <path d="M4 7h16M4 12h16M4 17h16" stroke="#1a1a1a" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
         </div>
        </div>
       </div>
+
+      {/* Desktop mega-menu — expands on L1 hover */}
+      {active && MENU_PANELS[active] && (
+        <div className="hidden md:block absolute left-0 right-0 top-full z-30">
+          <div className="w-full bg-white shadow-[0px_16px_24px_0px_rgba(24,0,146,0.10)]">
+            <div className="max-w-[1280px] mx-auto px-10 py-10">
+              {MENU_PANELS[active]}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -595,9 +1323,9 @@ function AnimatedLabel({
     <span
       className={`py-0.5 ${bgClass} rounded-sm overflow-hidden inline-flex items-center`}
     >
-      <span className="relative h-[56px] overflow-hidden flex items-center">
+      <span className="relative h-[34px] md:h-[56px] overflow-hidden flex items-center">
         <span
-          className="text-5xl font-bold leading-[56px] whitespace-nowrap px-3 invisible"
+          className="text-[26px] leading-[34px] md:text-5xl md:leading-[56px] font-bold whitespace-nowrap px-2 md:px-3 invisible"
           aria-hidden="true"
           style={{
             transition: `width ${TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`,
@@ -608,7 +1336,7 @@ function AnimatedLabel({
         {slides.map((slide, i) => (
           <span
             key={slide.label}
-            className={`${textClass} text-5xl font-bold leading-[56px] whitespace-nowrap px-3 absolute left-0 top-0`}
+            className={`${textClass} text-[26px] leading-[34px] md:text-5xl md:leading-[56px] font-bold whitespace-nowrap px-2 md:px-3 absolute left-0 top-0`}
             style={{
               transition: `transform ${TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), opacity ${TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`,
               transform:
@@ -641,6 +1369,8 @@ export default function Hero() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [version, setVersion] = useState<3 | 4>(4);
+  const [theme, setTheme] = useState<Theme>(1);
+  const [recommenderOn, setRecommenderOn] = useState(true);
   const [showExplanation, setShowExplanation] = useState(false);
 
   useEffect(() => {
@@ -663,28 +1393,43 @@ export default function Hero() {
 
   return (
     <main
-      className={`relative w-full min-h-screen ${version === 3 ? "bg-secondary-blue-dark" : "bg-surface-overlay-dark"}`}
+      className="relative w-full min-h-screen"
+      style={{ backgroundColor: themeStyles[theme].main }}
     >
-      <ToggleButton
-        version={version}
-        onToggle={() => setVersion((v) => (v === 3 ? 4 : 3))}
-      />
-      <div className="fixed top-4 right-20 z-50 flex flex-col items-end gap-2">
-        <button
-          onClick={() => setShowExplanation((v) => !v)}
-          className="px-4 py-2 rounded-full text-sm font-bold cursor-pointer transition-colors bg-white/10 backdrop-blur-md border border-white/20 text-white hover:bg-white/20"
-        >
-          {showExplanation ? "Hide explanation" : "Turn on explanation"}
-        </button>
-        {showExplanation && (
-          <div className="w-[480px] p-5 rounded-xl bg-black/60 backdrop-blur-md border border-white/20 text-white text-sm leading-relaxed">
-            {version === 3 ? (
-              <>The scrolling marquee cards can be grouped into sets of 3: two stacked vertically and one placed beside them. Each group surfaces a relevant promotion tied to its audience — for example, a &ldquo;For the self-employed&rdquo; stat card paired with a campaign card next to it. This way, every card group tells a focused story: who it&rsquo;s for, a key stat, and a related promotion.</>
-            ) : (
-              <>The left side features a guided recommender that helps visitors find the right solution through a simple questionnaire. The right side showcases hero imagery that rotates in sync with the animated headline — each persona (TikTok Sellers, Managers, Freelancers, etc.) is paired with a relevant product and visual, creating a cohesive story between the text, image, and floating product label.</>
-            )}
-          </div>
+      <div className="fixed top-4 right-4 z-50 flex items-start gap-2">
+        <div className="flex flex-col items-end gap-2">
+          <ControlButton
+            theme={theme}
+            label={showExplanation ? "Hide explanation" : "Turn on explanation"}
+            onClick={() => setShowExplanation((v) => !v)}
+          />
+          {showExplanation && (
+            <div className="w-[480px] p-5 rounded-xl bg-black/60 backdrop-blur-md border border-white/20 text-white text-sm leading-relaxed">
+              {version === 3 ? (
+                <>The scrolling marquee cards can be grouped into sets of 3: two stacked vertically and one placed beside them. Each group surfaces a relevant promotion tied to its audience — for example, a &ldquo;For the self-employed&rdquo; stat card paired with a campaign card next to it. This way, every card group tells a focused story: who it&rsquo;s for, a key stat, and a related promotion.</>
+              ) : (
+                <>The left side features a guided recommender that helps visitors find the right solution through a simple questionnaire. The right side showcases hero imagery that rotates in sync with the animated headline — each persona (TikTok Sellers, Managers, Freelancers, etc.) is paired with a relevant product and visual, creating a cohesive story between the text, image, and floating product label.</>
+              )}
+            </div>
+          )}
+        </div>
+        {version === 4 && (
+          <ControlButton
+            theme={theme}
+            label={`Recommender: ${recommenderOn ? "On" : "Off"}`}
+            onClick={() => setRecommenderOn((r) => !r)}
+          />
         )}
+        <ControlButton
+          theme={theme}
+          label={`Theme ${theme}`}
+          onClick={() => setTheme((t) => (t === 1 ? 2 : 1))}
+        />
+        <ControlButton
+          theme={theme}
+          label={`V${version === 3 ? 1 : 2}`}
+          onClick={() => setVersion((v) => (v === 3 ? 4 : 3))}
+        />
       </div>
       <Navbar />
 
@@ -693,12 +1438,15 @@ export default function Hero() {
           activeIndex={activeIndex}
           nextIndex={nextIndex}
           isTransitioning={isTransitioning}
+          theme={theme}
         />
       ) : (
         <HeroV4
           activeIndex={activeIndex}
           nextIndex={nextIndex}
           isTransitioning={isTransitioning}
+          theme={theme}
+          recommenderOn={recommenderOn}
         />
       )}
     </main>

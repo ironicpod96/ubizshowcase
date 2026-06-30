@@ -34,21 +34,23 @@ body {
     animation: chevron-bounce 3s cubic-bezier(0.28, 0.84, 0.42, 1) infinite;
   }
 
-  @keyframes carousel-scroll {
-    from { transform: translateX(0); }
-    to { transform: translateX(-2064px); }
-  }
-
-  .animate-carousel {
-    animation: carousel-scroll 40s linear infinite;
-    animation-delay: -6s;
-    animation-play-state: var(--carousel-state, running);
-    transition: animation-play-state 0.3s;
-  }
-
   .float-card-hidden {
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
+  }
+
+  .no-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  @keyframes pag-fill {
+    from { width: 0%; }
+    to { width: 100%; }
   }
 }
